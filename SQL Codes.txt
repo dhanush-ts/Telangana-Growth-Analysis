@@ -1,0 +1,76 @@
+Here are some of the SQL codes which I have used
+
+
+with fy21 as
+(SELECT sector,sum(investment_in_cr)*100 inv_in_lak1,district 
+FROM fact_ts_ipass join dim_date using (month) join dim_districts using (dist_code) 
+where fiscal_year=2021 group by district,sector order by district,sector), 
+fy22 as
+(SELECT sector,sum(investment_in_cr)*100 inv_in_lak2,district 
+FROM fact_ts_ipass join dim_date using (month) join dim_districts using (dist_code) 
+where fiscal_year=2022 group by district,sector order by district,sector)
+-----------------------------------------------------------------
+select district,sector,
+round(if(inv_in_lak2 is null,0,inv_in_lak2)-if(inv_in_lak1 is null,0,inv_in_lak1),2) inv_lak from
+(select * from fy21 left join fy22 using (district,sector)
+union
+select * from fy21 right join fy22 using (district,sector)) a order by inv_lak desc
+
+------------------------------------------------------------------
+
+SELECT sector,round(sum(investment_in_cr),2) cr
+FROM fact_ts_ipass join dim_date using (month) join dim_districts using (dist_code)
+where fiscal_year between 2019 and 2022 group by sector order by cr desc
+------------------------------------------------------------------
+
+with fy21 as
+(SELECT sum(fuel_type_electric) e2,sum(fuel_type_petrol) p2,sum(fuel_type_diesel) d2,district 
+FROM fact_transport join dim_date using (month) join dim_districts using (dist_code) 
+where fiscal_year=2021 group by district), 
+fy22 as
+(SELECT sum(fuel_type_electric) e1,sum(fuel_type_petrol) p1,sum(fuel_type_diesel) d1,district 
+FROM fact_transport join dim_date using (month) join dim_districts using (dist_code) 
+where fiscal_year=2022 group by district)
+
+select district,(p1-p2)/p2*100 pv,(d1-d2)/d2*100 dv,(e1-e2)/e2*100 ev from fy21 join fy22 using (district)
+order by ev desc
+
+------------------------------------------------------------------
+SELECT district,round(sum(fuel_type_petrol),2) 
+FROM fact_transport join dim_date using (month) join dim_districts using (dist_code)
+group by district order by cr desc
+
+-------------------------------------------------------------------
+
+SELECT district,sum(documents_registered_rev),ntile(3) over(order by sum(estamps_challans_rev))
+FROM dim_date join fact_stamps using (month) join dim_districts using (dist_code) 
+where fiscal_year between 2021 and 2022 group by district
+
+-------------------------------------------------------------------
+
+with fy19 as
+(SELECT district,sum(documents_registered_rev) d1 
+FROM fact_stamps join dim_date using (month) join dim_districts using (dist_code) 
+where fiscal_year=2019 group by district), 
+fy22 as
+(SELECT district,sum(documents_registered_rev) d2
+FROM fact_stamps join dim_date using (month) join dim_districts using (dist_code) 
+where fiscal_year=2022 group by district)
+select district,growth_rate from
+(select (district),concat(round((pow((d2/d1),0.25)-1)*100,2),"%") growth_rate,round((pow((d2/d1),0.25)-1)*100,2) ord
+from fy19 join fy22 using (district) order by ord desc) a limit 5
+
+-------------------------------------------------------------------
+
+select * from 
+(SELECT sector,fiscal_year,mmm,sum(investment_in_cr) inv,
+lag(mmm) over(partition by sector order by sum(investment_in_cr) desc) lg_m
+FROM fact_ts_ipass join dim_date using (month) join dim_districts using (dist_code)
+group by sector,fiscal_year,mmm) a
+where lg_m=mmm
+
+--------------------------------------------------------------------
+
+SELECT sector,fiscal_year,mmm,sum(investment_in_cr) inv
+FROM fact_ts_ipass join dim_date using (month) join dim_districts using (dist_code)
+group by sector,fiscal_year,mmm order by sector,inv desc
